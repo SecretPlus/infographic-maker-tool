@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تولیدکننده پرامپت اینفوگرافیک</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap');
+  body { font-family: 'Vazirmatn', sans-serif; }
+  select { background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: left 0.75rem center; background-size: 1.1rem; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen p-4 md:p-8">
+
+<div class="max-w-3xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden">
+  <div class="bg-indigo-600 p-8 text-white relative">
+    <button id="langToggle" onclick="toggleUILang()" class="absolute top-4 end-4 bg-white/15 hover:bg-white/25 transition text-xs font-bold px-3 py-1.5 rounded-full border border-white/30">
+      <span id="langToggleLabel">EN</span>
+    </button>
+    <h1 id="uiTitle" class="text-2xl font-bold pe-16">تولیدکننده پرامپت اینفوگرافیک</h1>
+    <p id="uiSubtitle" class="text-indigo-100 mt-2">تولید هوشمند پرامپت برای اینفوگرافیک‌های محصول — تصفیه خودکار، بدون تکرار، مینیمال</p>
+    <p id="uiSitesNote" class="text-indigo-200 text-xs mt-3"></p>
+  </div>
+
+  <div class="p-8 space-y-6">
+
+    <div>
+      <label id="labelProductInfo" class="block text-sm font-medium text-gray-700 mb-2">اطلاعات محصول را وارد کنید (حتی کپی مستقیم از صفحه فروشگاه):</label>
+      <textarea id="productInfo" class="w-full h-44 p-4 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition" placeholder="مثال: گوشی آیفون 15، دوربین 48 مگاپیکسلی، بدنه تیتانیوم... یا کل متن کپی‌شده از صفحه محصول"></textarea>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label id="labelLanguage" class="block text-sm font-medium text-gray-700 mb-2">زبان خروجی</label>
+        <select id="language" class="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
+          <option value="fa_en">فارسی + برند انگلیسی</option>
+          <option value="fa_only">کاملاً فارسی</option>
+          <option value="en_only">کاملاً انگلیسی</option>
+        </select>
+      </div>
+      <div>
+        <label id="labelStyle" class="block text-sm font-medium text-gray-700 mb-2">سبک بصری</label>
+        <select id="style" class="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
+          <option value="minimal">مینیمال سفید</option>
+          <option value="dark">استودیو تاریک</option>
+          <option value="gold">لوکس طلایی</option>
+          <option value="cyber">تکنو سایبرپانک</option>
+          <option value="gradient">گرادیان پاستلی</option>
+          <option value="vaporwave">رترو 80</option>
+          <option value="isometric">اینفوگرافیک ایزومتریک رنگی</option>
+          <option value="bizchart">بیزینس نموداری</option>
+        </select>
+      </div>
+    </div>
+
+    <button onclick="generatePrompt()" id="genBtn" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition shadow-lg shadow-indigo-200">
+      تولید پرامپت
+    </button>
+
+    <p id="warnMsg" class="hidden text-sm text-red-600 -mt-2">لطفاً اطلاعات محصول را وارد کنید.</p>
+
+    <div id="resultArea" class="hidden mt-6">
+      <div class="flex items-center justify-between mb-2">
+        <h3 id="labelSpecsUsed" class="text-gray-700 font-semibold">مشخصاتی که در پرامپت استفاده شد:</h3>
+      </div>
+      <div id="specsPreview" class="flex flex-wrap gap-2 mb-4"></div>
+
+      <div class="bg-slate-900 rounded-2xl p-6 text-slate-300 relative">
+        <h3 id="labelFinalPrompt" class="text-indigo-400 font-semibold mb-2">پرامپت نهایی ساخت اینفوگرافیک:</h3>
+        <textarea id="output" readonly dir="ltr" class="w-full bg-transparent text-sm leading-relaxed outline-none resize-none h-64 text-left"></textarea>
+        <button onclick="copyText()" id="copyBtn" class="absolute top-4 left-4 text-slate-400 hover:text-white bg-slate-800 p-2 rounded-lg text-xs transition">کپی متن</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   1) SMART EXTRACTION (v2) — format-aware: Persian sequential
+      label/value tables (Digikala, bprshop) AND English tab-
+      separated section tables (GSMArena, NanoReview). Cleans
+      raw pasted store text down to the specific product-spec
+      categories requested, removes noise (menus, prices,
+      footer, similar/related products, review sections,
+      config-selector dropdowns), and de-duplicates every line.
+   ========================================================= */
+
+/* ===================== digit + basic utils ===================== */
+function toLatinDigits(str) {
+  const fa = "۰۱۲۳۴۵۶۷۸۹", ar = "٠١٢٣٤٥٦٧٨٩";
+  return str.replace(/[۰-۹٠-٩]/g, d => {
+    const i = fa.indexOf(d);
+    return i > -1 ? String(i) : String(ar.indexOf(d));
+  });
+}
+
+const BRANDS = ["Asus","ASUS","Apple","Samsung","Xiaomi","Huawei","Lenovo","HP","Dell","MSI","Acer","LG","Sony",
+  "Nokia","Honor","OnePlus","Oppo","Vivo","Realme","Google","Microsoft","Gigabyte","Razer","Toshiba","JBL","Bose",
+  "Anker","Canon","Nikon","GoPro","Amazfit","Garmin","Fitbit","TCL","Motorola","ZTE","Meizu","Nubia","Infinix","Tecno"];
+
+/* ===================== noise / junk-section removal ===================== */
+
+const NOISE_PATTERNS = [
+  /تومان/, /ریال/, /تخفیف/, /امتیاز کاربران/, /نظرات کاربران/, /افزودن به سبد/,
+  /اشتراک ?گذاری/, /علاقه ?مندی/, /^مقایسه$/, /صفحه اصلی/, /درباره ما/, /راهنما(ی)?( خرید)?/,
+  /تماس با ما/, /حریم خصوصی/, /ارسال رایگان/, /خرید قسطی/, /پیشنهادات و شکایات/,
+  /استخدام/, /شرایط ضمانت/, /بروزرسانی/, /کد کالا/, /وضعیت موجودی/, /^رنگ:?$/, /خاکستری|مشکی رنگ|سفید رنگ|نقره ای/,
+  /فروشنده/, /شبکه های اجتماعی/, /تمامی حقوق/, /فیسبوک|اینستاگرام|تلگرام|آپارات/,
+  /لیست قیمت/, /ترفند/, /ساعات کاری/, /گزارش قیمت/, /پرداخت در محل/, /گارانتی اصلی محصولات/,
+  /^جستجو/, /^مقالات/, /wishlist/i, /go-to-top/i, /^اقلام همراه$/, /^انتخاب گارانتی$/,
+  /^ارسال ?:?$/, /آماده ارسال/, /قیمت قبلی/, /افتخارات/, /کانال تلگرام/, /راهنمای جامع/, /ماه گارانتی/,
+  /^بستن$/, /^دیجی[‌ ]?کلاب$/, /امتیاز دیجی[‌ ]?کلاب/, /رضایت از کالا/, /^عملکرد$/, /^عالی$/,
+  /باقی مانده/, /گارانتی .*ماهه/, /گزارش مشخصات کالا/, /هشدار سامانه همتا/, /خرید اشتراک/,
+  /^ADVERTISEMENT$/i, /^Ad$/i, /^Ads by$/i, /^Playwire$/i, /^Become a fan$/i, /^Log inSign up$/i,
+  /^Tip us$/i, /^RSS$/i, /^Merch$/i, /^Search$/i, /^Beta$/i, /^Preview$/i, /hits$/i,
+  /^Read all opinions/i, /^Reply$/i, /^Total user opinions/i, /disclaimer/i, /100% correct/i,
+  /^Show all prices$/i, /^See on Amazon/i, /^See more configurations/i, /^Updated:/i, /^Details$/i,
+  /^Submit your benchmark/i, /^Add your GPU benchmark/i, /^Discover more$/i, /^Featured$/i,
+  /^We may earn/i, /^Enter the name of the product/i, /^Begin typing for results/i,
+  /Deal recommended based on/i, /^Register your profile/i, /^Name$/i, /^Message$/i, /^Send$/i
+];
+
+const END_OF_DOC_MARKERS = [
+  /^با دیجی[‌ ]?کالا$/, /نماد اعتماد الکترونیک/, /دیجی کالا؛ بزرگترین/,
+  /^تماس با ما$/,
+  /^Comparisons$/i, /^© \d{4}/, /^NanoReview\.net/i, /^Comments$/i,
+  /^Comparison with competitors$/i, /^Home News Reviews Compare Coverage/i
+];
+
+const SKIP_BLOCKS = [
+  [/محصولات مشابه/, /مشخصات فنی|امتیاز و نظرات/],
+  [/^معرفی$/, /^مشخصات$/],
+  [/^بررسی تخصصی$/, /^مشخصات$/],
+  [/^Related devices$/i, /^ADVERTISEMENT$|^Popular from|^More related/i],
+  [/^Popular from/i, /^ADVERTISEMENT$|^Ads by|^Home News Reviews/i],
+  [/user opinions and reviews/i, /^Side-by-Side Reviews$|^ADVERTISEMENT$|^Related devices$|^Recommended deal$/i],
+  [/^Pricing$/i, /user opinions and reviews|^Samsung Galaxy|^Google Pixel/i],
+  [/^Comparison with competitors$/i, /^Comments$/i],
+  [/^See .* Laptops$/i, /^Comparison with competitors$|^Tests and Specifications$/i],
+];
+
+function isPriceLine(line) {
+  const t = line.trim();
+  if (/تومان|ریال/.test(line)) return true;
+  if (/^[\d]{1,3}(?:[,٬][\d]{3})+$/.test(t)) return true; // comma-grouped, e.g. 276,999,000
+  if (/^[\d]{5,}$/.test(t)) return true; // 5+ raw digits with no separator
+  return false;
+}
+
+function applySkipBlocks(lines) {
+  let out = [];
+  let activeEnd = null;
+  for (const line of lines) {
+    if (activeEnd) {
+      if (activeEnd.test(line)) { activeEnd = null; out.push(line); }
+      continue;
+    }
+    const block = SKIP_BLOCKS.find(([start]) => start.test(line));
+    if (block) { activeEnd = block[1]; continue; }
+    out.push(line);
+  }
+  return out;
+}
+
+function truncateAtEndMarker(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    if (END_OF_DOC_MARKERS.some(re => re.test(lines[i]))) return lines.slice(0, i);
+  }
+  return lines;
+}
+
+function removeNoise(lines) {
+  return lines.filter(line => {
+    const t = line.trim();
+    if (!t) return false;
+    if (isPriceLine(t)) return false;
+    if (NOISE_PATTERNS.some(re => re.test(t))) return false;
+    return true;
+  });
+}
+
+/* ===================== product type detection ===================== */
+
+function detectProductType(raw) {
+  const mobileScore =
+    (raw.match(/سیم ?کارت|SIM(?:\s|-)|گوشی موبایل|Mobile Phone|Smartphone|تبلت|Tablet|Android \d|iOS \d/gi) || []).length;
+  const laptopScore =
+    (raw.match(/لپ ?تاپ|Laptop|Notebook|Touchpad|Keyboard type|کیبورد|CPU name|RAM size|Storage size/gi) || []).length;
+  if (mobileScore > laptopScore) return 'mobile';
+  return 'laptop';
+}
+
+/* ===================== Persian sequential label/value pairs ===================== */
+
+const CATEGORY_LABELS = {
+  brand_label: { specific: /^برند$|^Brand$/i },
+  model_label: { specific: /^مدل$|^Model$/i },
+  cpu_maker: { specific: /^سازنده پردازنده$/ },
+  cpu_series: { specific: /^سری پردازنده$/ },
+  cpu_model: { specific: /^مدل پردازنده$/ },
+  cpu_chip: { specific: /^تراشه$/ },
+  cpu_desc: { specific: /^پردازنده‌?$/ },
+  gpu_maker: { specific: /^سازنده پردازنده گرافیکی$/ },
+  gpu_model: { specific: /^مدل پردازنده گرافیکی$/ },
+  gpu_desc: { specific: /^پردازنده‌?\s*گرافیکی$/ },
+  ram: { specific: /^مقدار رم$|^ظرفیت رم$/, generic: /^حافظه رم$|^رم$/ },
+  ram_type: { specific: /^نوع حافظه RAM$|^نوع رم$|^نوع حافظه رم$/i },
+  storage: { specific: /^ظرفیت حافظه داخلی$|^فضای ذخیره[- ]?سازی$|^ظرفیت حافظه$/, generic: /^حافظه داخلی$/ },
+  storage_type: { specific: /^نوع حافظه داخلی$|^نوع حافظه$/ },
+  display_size: { specific: /^اندازه صفحه نمایش$|^اندازه نمایشگر$|^سایز صفحه نمایش$|^اندازه$/ },
+  display_type: { specific: /^نوع صفحه نمایش$|^فناوری صفحه‌? نمایش$/ },
+  display_res: { specific: /^دقت صفحه نمایش$|^رزولوشن صفحه نمایش$/ },
+  battery_type: { specific: /^نوع باتری( تبلت| گوشی| لپ ?تاپ)?$/ },
+  battery_capacity: { specific: /^ظرفیت باتری$/ },
+  battery_desc: { specific: /^توضیحات باتری$/ },
+  os: { specific: /^سیستم عامل$/ },
+  os_version: { specific: /^نسخه سیستم عامل$/ },
+  webcam: { specific: /^توضیحات وب ?کم$/ },
+  keyboard_light: { specific: /^کیبورد با نور پس ?زمینه$/ },
+  card_reader: { specific: /^کارت ?خوان$/ },
+  optical: { specific: /^درایو نوری$/ },
+  usb3: { specific: /^تعداد پورت USB 3$/ },
+  usb2: { specific: /^تعداد پورت USB 2$/ },
+  usbc: { specific: /^تعداد پورت USB Type-?C$/i },
+  usb_version: { specific: /^نسخه USB$/ },
+  physical: { specific: /^مشخصات فیزیکی$/ },
+  sim_support: { specific: /^قابلیت پشتیبانی از سیم ?کارت$|^قابلیت نصب سیم ?کارت$/ },
+  sim_count: { specific: /^تعداد سیم ?کارت$/ },
+  network_gen: { specific: /^نسل شبکه[‌ ]?های ارتباطی$|^نسل شبکه$/ },
+  wifi_desc: { specific: /^توضیحات Wi-?Fi$/i },
+  bt_version: { specific: /^نسخه بلوتوث$/ },
+  water_resist_desc: { specific: /^توضیحات قابلیت[‌ ]?های مقاومتی$/ },
+  battery_capacity_en: { specific: /^Capacity$/ },
+};
+
+function extractLabelValuePairs(lines) {
+  const result = {};
+  const norm = s => s.trim().replace(/\u200c/g, ' ').replace(/ +/g, ' ');
+  const grabValue = (i, line) => {
+    const colonMatch = line.match(/[:：](.+)/);
+    if (colonMatch && colonMatch[1].trim().length > 1) return colonMatch[1].trim();
+    if (lines[i + 1]) return lines[i + 1].trim();
+    return null;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = norm(lines[i]);
+    for (const [key, def] of Object.entries(CATEGORY_LABELS)) {
+      if (key in result) continue;
+      if (def.specific && def.specific.test(line)) {
+        const v = grabValue(i, lines[i].trim());
+        if (v && v !== '-') result[key] = v;
+      }
+    }
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const line = norm(lines[i]);
+    for (const [key, def] of Object.entries(CATEGORY_LABELS)) {
+      if (key in result) continue;
+      if (def.generic && def.generic.test(line)) {
+        const v = grabValue(i, lines[i].trim());
+        if (v && v !== '-') result[key] = v;
+      }
+    }
+  }
+  return result;
+}
+
+/* ===================== English tab-separated section tables ===================== */
+
+const KNOWN_SECTIONS = new Set([
+  "Network","Launch","Body","Display","Platform","Memory","Main Camera","Selfie camera","Sound",
+  "Comms","Features","Battery","Misc","Price","Our Tests","EU LABEL","Case","Cooling solution",
+  "CPU","Graphics Card","RAM","Storage","Connectivity","Ports","Input","Keyboard","Touchpad"
+].map(s => s.toLowerCase()));
+
+const CONFIG_SELECTOR_LABELS = new Set(["cpu name", "gpu name", "ram size", "storage size"]);
+
+function parseTabTable(lines) {
+  const rows = [];
+  let currentSection = null;
+  let pendingRow = null;
+  let inSelectorBlock = false;
+
+  for (const raw of lines) {
+    if (raw.includes('\t')) {
+      inSelectorBlock = false;
+      const parts = raw.split('\t').map(s => s.trim());
+      if (parts.length >= 3) {
+        if (parts[0]) currentSection = parts[0];
+        const label = parts[1];
+        const value = parts.slice(2).join(' ').trim();
+        if (value && value !== '-') { rows.push({ section: currentSection, label, value }); pendingRow = null; }
+        else if (label) { pendingRow = { section: currentSection, label }; }
+      } else if (parts.length === 2) {
+        const [label, value] = parts;
+        if (value && value !== '-') { rows.push({ section: currentSection, label, value }); pendingRow = null; }
+        else if (label) { pendingRow = { section: currentSection, label }; }
+      }
+      continue;
+    }
+    const t = raw.trim();
+    if (!t || t === '-') continue;
+
+    if (pendingRow) {
+      rows.push({ section: pendingRow.section, label: pendingRow.label, value: t });
+      pendingRow = null;
+      continue;
+    }
+    const lower = t.toLowerCase();
+    if (KNOWN_SECTIONS.has(lower)) {
+      currentSection = t;
+      inSelectorBlock = false;
+      continue;
+    }
+    if (CONFIG_SELECTOR_LABELS.has(lower)) {
+      const shortLabel = t.replace(/^(cpu|gpu|ram|storage)\s+/i, '');
+      pendingRow = { section: currentSection, label: shortLabel };
+      inSelectorBlock = true;
+      continue;
+    }
+    if (inSelectorBlock) continue;
+  }
+  return rows;
+}
+
+function getRow(rows, sectionRe, labelRe) {
+  const r = rows.find(r => sectionRe.test(r.section || '') && labelRe.test(r.label || ''));
+  return r ? r.value : null;
+}
+
+/* ===================== title detection ===================== */
+
+const TITLE_STOP_WORDS = new Set([
+  "core","ryzen","i3","i5","i7","i9","wuxga","fhd","qhd","uhd","hd","ram","ssd","hdd",
+  "rtx","gtx","geforce","radeon","with","anti","glare","display","inch","mhz","ghz",
+  "cache","gen","type-c","up","to","gb","tb","and","for","the","dual","sim","storage",
+  "mobile","phone","not","activated","edition","international","global","tablet","wifi",
+  "cellular","tests","full","specs","business","int"
+]);
+
+function isModelToken(tok) {
+  const clean = tok.replace(/[.,;:]$/, "");
+  if (!clean) return false;
+  const lower = clean.toLowerCase();
+  if (TITLE_STOP_WORDS.has(lower)) return false;
+  if (/^[0-9]+$/.test(clean)) return clean.length <= 3; // e.g. "iPhone 17", "Surface Pro 11"
+  if (/^[A-Za-z]+[0-9]+[A-Za-z0-9]*$/.test(clean)) return true; // e.g. FX607VU, S24, 266V
+  if (/^[A-Za-z]+$/.test(clean) && clean.length <= 8) return true; // e.g. TUF, Plus, Ultra
+  return false;
+}
+
+function findTitleFromBrandPattern(lines) {
+  let best = null;
+  for (const line of lines) {
+    for (const b of BRANDS) {
+      const re = new RegExp("(?:^|\\s)(" + b + ")\\s+([A-Za-z0-9\\-]+.*)", "i");
+      const m = line.match(re);
+      if (!m) continue;
+      const rest = m[2].split(/\s+/);
+      const kept = [m[1]];
+      for (const tok of rest) {
+        if (isModelToken(tok)) kept.push(tok); else break;
+      }
+      const candidate = kept.join(" ").trim();
+      if (kept.length > 1 && (!best || candidate.length > best.length)) best = candidate;
+    }
+  }
+  return best;
+}
+
+function findTitleSelfDuplicate(lines) {
+  for (let i = 0; i < Math.min(lines.length - 1, 20); i++) {
+    const a = lines[i].trim(), b = lines[i + 1].trim();
+    if (!a || !b) continue;
+    if (/^[A-Za-z0-9 \-.'"]+$/.test(a) && a.length > 4 && a.length < 60) {
+      if (a === b || b.startsWith(a) || a.startsWith(b)) {
+        const brandHit = BRANDS.some(br => new RegExp("\\b" + br + "\\b", "i").test(a));
+        if (brandHit) return a.length >= b.length ? a : b;
+      }
+    }
+  }
+  return null;
+}
+
+function findTitleBreadcrumb(lines) {
+  for (const line of lines) {
+    const m = line.match(/>\s*([^>]+?):\s*full specs/i);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
+function buildTitle(lines, raw, pairs) {
+  const cleanedText = lines.join(' ');
+  if (pairs.model_label) {
+    const modelVal = pairs.model_label.trim();
+    const hasBrand = BRANDS.some(b => new RegExp("\\b" + b + "\\b", "i").test(modelVal));
+    if (hasBrand) return modelVal;
+    if (pairs.brand_label) return pairs.brand_label.trim() + " " + modelVal;
+    for (const b of BRANDS) {
+      if (new RegExp("\\b" + b + "\\b", "i").test(cleanedText)) return b + " " + modelVal;
+    }
+    return modelVal;
+  }
+  const selfDup = findTitleSelfDuplicate(lines);
+  if (selfDup) return selfDup;
+  const breadcrumb = findTitleBreadcrumb(lines);
+  if (breadcrumb) {
+    const hasBrand = BRANDS.some(b => new RegExp("\\b" + b + "\\b", "i").test(breadcrumb));
+    if (hasBrand) return breadcrumb;
+    for (const b of BRANDS) {
+      if (new RegExp("\\b" + b + "\\b", "i").test(cleanedText)) return b + " " + breadcrumb;
+    }
+    return breadcrumb;
+  }
+  return findTitleFromBrandPattern(lines);
+}
+
+/* ===================== raw-text scans (format independent) ===================== */
+
+function scanRamUpgrade(raw) {
+  const re = /قابلیت ارتقا[^\n:：]{0,20}[:：]?\s*(up to\s*)?([0-9]+\s*(?:GB|گیگابایت|گيگابايت))/i;
+  const m = raw.match(re);
+  if (!m) return null;
+  return "تا " + m[2].replace(/\s+/g, "");
+}
+
+function scanDisplayFinish(raw) {
+  const re = /(صفحه ?نمایش|نمایشگر|Coating)[^\n]{0,60}?(مات|براق|گلاسه|ضد ?خیرگی|anti[- ]glare|matte|glossy)/i;
+  const m = raw.match(re);
+  if (!m) return null;
+  const w = m[2].toLowerCase();
+  if (/anti|ضد/.test(w)) return "ضدخیرگی";
+  if (/مات|matte/.test(w)) return "مات";
+  if (/براق|glossy/.test(w)) return "براق";
+  if (/گلاسه/.test(w)) return "گلاسه";
+  return m[2];
+}
+
+function scanConnectivity(raw) {
+  const hasCellularNegation = /بدون سیم[- ]?کارت|بدون پشتیبانی از سیم ?کارت/.test(raw);
+  const wifi = /Wi-?Fi/i.test(raw);
+  const bluetooth = /Bluetooth|بلوتوث/i.test(raw);
+  let cellular = null;
+  if (!hasCellularNegation) {
+    if (/\b5G\b/i.test(raw)) cellular = "5G";
+    else if (/\b4G\b|\bLTE\b/i.test(raw)) cellular = "4G";
+    else if (/\b3G\b|\bHSPA\b/i.test(raw)) cellular = "3G";
+  }
+  return { wifi, bluetooth, cellular };
+}
+
+function scanSim(raw, rows) {
+  const gsmSim = getRow(rows, /^body$/i, /^sim$/i);
+  if (gsmSim) return gsmSim.split(',')[0].trim();
+  if (/بدون پشتیبانی از سیم ?کارت|بدون سیم ?کارت/.test(raw)) return null;
+  const mFa = raw.match(/(دو|یک|سه) ?سیم[‌ ]?کارت/);
+  if (mFa) return mFa[0];
+  const mEn = raw.match(/\b(Dual|Single|Triple)\s+SIM\b/i);
+  if (mEn) return mEn[0];
+  return null;
+}
+
+function scanIPRating(raw) {
+  const m = raw.match(/IP[0-9X]{2}\b/);
+  return m ? m[0] : null;
+}
+
+function scanCharging(raw) {
+  let watts = null;
+  const mEn = raw.match(/(\d{1,3})\s*W\s*(wired)/i);
+  if (mEn) watts = mEn[1] + "W";
+  if (!watts) {
+    const mFa = raw.match(/شارژ[^\n]{0,25}?(\d+)\s*وات/);
+    if (mFa) watts = mFa[1] + "W";
+  }
+  if (!watts) {
+    const mGeneric = raw.match(/\b(\d{1,3})W\b/);
+    if (mGeneric && /شارژ|charg/i.test(raw.slice(Math.max(0, mGeneric.index - 30), mGeneric.index + 10))) {
+      watts = mGeneric[1] + "W";
+    }
+  }
+  const wireless = /wireless charging|شارژ (بی[‌ ]?سیم|وایرلس)/i.test(raw);
+  return { watts, wireless };
+}
+
+/* ===================== simplify for general audience ===================== */
+
+// "Qualcomm SM7550-AB Snapdragon 7 Gen 3 (4 nm)" -> "Snapdragon 7 Gen 3 (4 nm)"
+// "Mediatek Dimensity 9300+ (4 nm)" -> "Dimensity 9300+ (4 nm)"
+// "Intel Core Ultra 7 266V" -> "Core Ultra 7 266V"
+// "Nvidia GeForce RTX 3050" -> "GeForce RTX 3050"
+function simplifyChipName(raw) {
+  if (!raw) return raw;
+  let s = raw.replace(/\b[A-Z]{2,5}\d{3,5}(-[A-Z0-9]+)*\b\s*/g, '').trim();
+  const stripped = s.replace(/^(Qualcomm|MediaTek|Mediatek|HiSilicon|Samsung|Google|Intel|AMD|Nvidia|Apple|Huawei)\s+/i, '').trim();
+  const looksSubstantial = stripped && (/\d/.test(stripped) || stripped.split(/\s+/).length >= 2);
+  if (stripped && stripped !== s && looksSubstantial) s = stripped;
+  return s.replace(/\s{2,}/g, ' ') || raw;
+}
+
+// Extract just the inch number from a messy display-size string
+// (drops cm2 area, screen-to-body ratio, resolution, ppi density entirely).
+function parseDisplayInches(sizeRaw) {
+  if (!sizeRaw) return null;
+  const m = sizeRaw.match(/(\d+(?:\.\d+)?)/);
+  return m ? m[1] : null;
+}
+
+/* ===================== dedupe ===================== */
+
+function dedupe(items) {
+  const seen = new Set();
+  const out = [];
+  for (const it of items) {
+    const key = it.replace(/\s+/g, " ").trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
+  }
+  return out;
+}
+
+/* ===================== main entry point ===================== */
+
+function extractCleanData(rawInput) {
+  const raw = toLatinDigits(rawInput).replace(/\r/g, '');
+  let lines = raw.split("\n")
+    .map(l => l.replace(/^ +/, '').replace(/ +$/, ''))
+    .filter(l => l.trim().length > 0);
+  lines = truncateAtEndMarker(lines);
+  lines = applySkipBlocks(lines);
+  lines = removeNoise(lines);
+
+  const productType = detectProductType(raw);
+  const pairs = extractLabelValuePairs(lines);
+  const rows = parseTabTable(lines);
+  const title = buildTitle(lines, raw, pairs) || "";
+
+  const cpuParts = [pairs.cpu_maker, pairs.cpu_model || pairs.cpu_series].filter(Boolean);
+  let cpuVal = null;
+  if (cpuParts.length === 2 && cpuParts[1].toLowerCase().includes(cpuParts[0].toLowerCase())) {
+    cpuVal = cpuParts[1];
+  } else if (cpuParts.length) {
+    cpuVal = dedupe(cpuParts).join(" ");
+  } else {
+    cpuVal = pairs.cpu_chip || pairs.cpu_desc || null;
+  }
+  if (!cpuVal) {
+    cpuVal = getRow(rows, /^platform$/i, /^chipset$/i) ||
+             getRow(rows, /^cpu$/i, /^name$/i) ||
+             getRow(rows, /^platform$/i, /^cpu$/i);
+  }
+  cpuVal = simplifyChipName(cpuVal);
+  const cpuLine = cpuVal ? "پردازنده: " + cpuVal : null;
+
+  const gpuParts = [pairs.gpu_maker, pairs.gpu_model].filter(Boolean);
+  let gpuVal = gpuParts.length ? dedupe(gpuParts).join(" ") : (pairs.gpu_desc || null);
+  if (!gpuVal) {
+    gpuVal = getRow(rows, /^graphics card$/i, /^name$/i) ||
+             getRow(rows, /^platform$/i, /^gpu$/i) ||
+             getRow(rows, /^cpu$/i, /^integrated gpu$/i);
+  }
+  gpuVal = simplifyChipName(gpuVal);
+  const gpuLine = gpuVal ? "گرافیک: " + gpuVal : null;
+
+  const ramUpgrade = scanRamUpgrade(raw);
+  let ramVal = pairs.ram ? pairs.ram + (pairs.ram_type ? " " + pairs.ram_type : "") : null;
+  if (!ramVal) {
+    const size = getRow(rows, /^ram$/i, /^size$/i);
+    const type = getRow(rows, /^ram$/i, /^type$/i);
+    if (size) ramVal = size + (type ? " " + type : "");
+  }
+  const ramLine = ramVal ? "رم: " + ramVal + (ramUpgrade ? " (قابل ارتقا " + ramUpgrade + ")" : "") : null;
+
+  let storageVal = pairs.storage || null;
+  if (!storageVal) {
+    storageVal = getRow(rows, /^storage$/i, /^size$/i) || getRow(rows, /^memory$/i, /^internal$/i);
+    if (storageVal) storageVal = storageVal.split(',')[0].trim();
+  }
+  let storageType = pairs.storage_type ||
+    getRow(rows, /^storage$/i, /^storage type$/i) ||
+    getRow(rows, /^storage$/i, /^type$/i);
+  if (storageVal && storageType) {
+    const firstWord = storageType.toLowerCase().split(/[\s(]/)[0];
+    if (!storageVal.toLowerCase().includes(firstWord)) storageVal = storageVal + " " + storageType;
+  }
+  const storageLine = storageVal ? "حافظه: " + storageVal : null;
+
+  const displayFinish = scanDisplayFinish(raw);
+  let dSize = pairs.display_size, dType = pairs.display_type;
+  if (!dSize) dSize = getRow(rows, /^display$/i, /^size$/i);
+  if (!dType) dType = getRow(rows, /^display$/i, /^type$/i);
+  if (dType) dType = dType.split(',')[0].trim();
+  const dInches = parseDisplayInches(dSize);
+  let displayCore = dInches ? dInches + " اینچ" : "";
+  if (dType) displayCore += (displayCore ? " از نوع " : "از نوع ") + dType;
+  const displayLine = displayCore
+    ? "نمایشگر: " + displayCore + (displayFinish ? " - " + displayFinish : "")
+    : null;
+
+  let battVal = [pairs.battery_capacity, pairs.battery_type, pairs.battery_desc].filter(Boolean).join(" - ") || null;
+  if (!battVal) {
+    const cap = getRow(rows, /^battery$/i, /^type$/i);
+    const cap2 = getRow(rows, /^battery$/i, /^capacity$/i);
+    battVal = [cap2, cap].filter(Boolean).join(" - ") || null;
+  }
+  if (!battVal && pairs.battery_capacity_en) battVal = pairs.battery_capacity_en;
+  const chargeInfo = scanCharging(raw);
+  if (!chargeInfo.watts) {
+    const cp = getRow(rows, /^battery$/i, /^charge power$/i);
+    if (cp) { const m = cp.match(/(\d{1,3})\s*W/); if (m) chargeInfo.watts = m[1] + "W"; }
+  }
+  const battLine = battVal
+    ? "باتری: " + battVal + (chargeInfo.watts ? ` - شارژ ${chargeInfo.watts}${chargeInfo.wireless ? ' (+ بی‌سیم)' : ''}` : "")
+    : null;
+
+  let osVal = pairs.os_version || pairs.os || null;
+  if (!osVal) {
+    osVal = getRow(rows, /^platform$/i, /^os$/i);
+    if (osVal) osVal = osVal.split(',')[0].trim();
+  }
+  const osHasValue = osVal && !/^(ندارد|فاقد|بدون سیستم عامل|بدون|none|n\/a|-|—)$/i.test(osVal.trim());
+  const osLine = osHasValue ? "سیستم عامل: " + osVal : null;
+
+  const conn = scanConnectivity(raw);
+  let wifiVer = getRow(rows, /^connectivity$|^comms$/i, /^wi-?fi/i);
+  let btVer = getRow(rows, /^connectivity$|^comms$/i, /^bluetooth$/i) || pairs.bt_version;
+  const connParts = [
+    conn.wifi && ("Wi-Fi" + (wifiVer ? " " + wifiVer : "")),
+    conn.bluetooth && ("بلوتوث" + (btVer ? " " + btVer : "")),
+    conn.cellular
+  ].filter(Boolean);
+  const connLine = connParts.length ? "اتصال: " + connParts.join(" + ") : null;
+
+  const portParts = [
+    pairs.usb3 && ("USB3: " + pairs.usb3),
+    pairs.usbc && ("Type-C: " + pairs.usbc),
+    pairs.usb_version && pairs.usb_version
+  ].filter(Boolean);
+  const portsLine = portParts.length ? "پورت‌ها: " + dedupe(portParts).join(" | ") : null;
+
+  const simVal = scanSim(raw, rows);
+  const simLine = simVal ? "سیم‌کارت: " + simVal : null;
+
+  const ipVal = scanIPRating(raw);
+  const ipLine = ipVal ? "مقاومت: " + ipVal : null;
+
+  const candidates = [];
+  if (cpuLine) candidates.push(cpuLine);
+  if (gpuLine) candidates.push(gpuLine);
+  if (ramLine) candidates.push(ramLine);
+  if (storageLine) candidates.push(storageLine);
+  if (displayLine) candidates.push(displayLine);
+  if (battLine) candidates.push(battLine);
+
+  if (productType === 'mobile') {
+    if (simLine) candidates.push(simLine);
+    if (connLine) candidates.push(connLine);
+    if (ipLine) candidates.push(ipLine);
+  } else {
+    if (portsLine) candidates.push(portsLine);
+    if (connLine) candidates.push(connLine);
+    if (pairs.keyboard_light) candidates.push("کیبورد: نور پس‌زمینه " + pairs.keyboard_light);
+    if (pairs.webcam) candidates.push("وب‌کم: " + pairs.webcam);
+  }
+
+  const cap = productType === 'mobile' ? 9 : 6;
+  let finalList = dedupe(candidates).slice(0, cap);
+
+  if (osLine && !finalList.some(l => l.startsWith("سیستم عامل"))) finalList.push(osLine);
+
+  if (finalList.length < 2) {
+    const chunks = raw.split(/[،,\n\.]+/).map(s => s.trim())
+      .filter(s => s.length > 1 && !NOISE_PATTERNS.some(re => re.test(s)) && !isPriceLine(s));
+    finalList = dedupe(chunks).slice(0, 6);
+  }
+
+  return { title, specs: finalList, productType };
+}
+
+
+
+/* =========================================================
+   2) STYLE / LANGUAGE PRESETS
+   ========================================================= */
+
+const STYLES = {
+  minimal: {
+    label: "Minimal White Studio",
+    block: `- Background: pure white (#FFFFFF) with massive negative space.
+- Accent: soft indigo (#6366F1), charcoal text (#1E293B).
+- Typography: clean geometric sans-serif, generous letter spacing.
+- Composition: product centered, thin elegant callout lines to labels.`
+  },
+  dark: {
+    label: "Dark Studio",
+    block: `- Background: deep charcoal-black (#0F0F0F) studio backdrop.
+- Accent: electric white text, subtle cool rim lighting on the product.
+- Typography: modern sans-serif, high contrast, crisp white labels.
+- Composition: dramatic single spotlight on the product, thin light-gray callout lines.`
+  },
+  gold: {
+    label: "Luxury Gold",
+    block: `- Background: deep black or dark charcoal (#0B0B0B).
+- Accent: warm gold (#D4AF37) labels and hairline callout lines.
+- Typography: refined serif or thin elegant sans-serif for a premium feel.
+- Composition: centered hero product shot, generous premium whitespace, subtle gold glow.`
+  },
+  cyber: {
+    label: "Techno Cyberpunk",
+    block: `- Background: near-black with subtle circuit-pattern texture (#0A0A12).
+- Accent: neon cyan (#00F0FF) and magenta (#FF2ED1) glowing lines and labels.
+- Typography: futuristic techno sans-serif, slightly condensed.
+- Composition: HUD-style callout lines, glowing node points on the product.`
+  },
+  gradient: {
+    label: "Pastel Gradient",
+    block: `- Background: soft pastel gradient (lavender to mint or peach to sky-blue).
+- Accent: violet and teal UI elements, rounded modern icons.
+- Typography: friendly rounded sans-serif.
+- Composition: centered product with soft-shadow callouts, airy and approachable feel.`
+  },
+  vaporwave: {
+    label: "رترو 80",
+    block: `- Background: peach puff (#FFDAB9) — soft, approachable, yet business-grade in clarity.
+- Accent: dark turquoise (#00CED1) and tomato (#FF6347) for callout lines and highlight labels; black (#000000) for primary text.
+- Typography: geometric display headings paired with a clean, readable body typeface; important figures/numbers set as the main visual axis.
+- Composition: product floats in open space with generous whitespace treated as a design device, not emptiness; orderly alignment without feeling mechanical.
+- Illustration accents: restrained abstract Memphis-style shapes (soft organic forms, simple geometric figures) used only as a light supporting texture around the product — never overpowering the subject or looking childish.
+- Overall tone: playful, eccentric, 80s-inspired retro-consumer aesthetic, but composed and refined rather than loud.`
+  },
+  isometric: {
+    label: "اینفوگرافیک ایزومتریک رنگی",
+    block: `- Background: light gray or a faint grid pattern, kept clean and high-contrast for readability.
+- Accent: coral red (#FF6B6B) for primary text/headings, teal (#4ECDC4) and yellow (#FFE66D) as supporting accents, dark blue (#1A535C) for grounding elements — palette chosen so quantitative differences read at a glance.
+- Typography: rounded sans-serif headings, clear readable body type, clean labels; important numbers set as the main visual axis.
+- Composition: structured, interconnected flow (not a mechanical grid) with generous whitespace used as a design device, not empty space.
+- Illustration accents: 3D isometric vector illustration style — isometric graphs, circular charts, flowchart-style connector lines, small micro-people or floating platform motifs used sparingly as restrained supporting texture around the product; prioritize clear diagram structure over decoration.
+- Overall tone: informational, playful yet professional and modern; composed and readable rather than loud or cluttered.`
+  },
+  bizchart: {
+    label: "بیزینس نموداری",
+    block: `- Background: bright, clean, well-organized white or very light neutral background — reads like a professional strategy/business document.
+- Primary text: highly legible dark charcoal/near-black; accent color (a single confident blue or teal) reserved strictly for emphasis — key numbers, one highlighted callout, or a comparison indicator, never used broadly.
+- Typography: clean geometric sans-serif headings with clear weight hierarchy; important figures and statistics are set noticeably larger/bolder than surrounding text so they read as the main information axis, almost like a KPI on a dashboard.
+- Composition: structured card/grid layout with one clear line of sight through the page; generous, deliberate whitespace treated as a design device, not emptiness; orderly alignment without feeling rigid or like a spreadsheet.
+- Illustration accents: restrained flat icons/pictograms plus light data-visualization motifs — a small bar chart, a simple comparison indicator, or a subtle KPI card — placed around the product only as supporting structure, never decorative clutter; avoid symbolic or ceremonial imagery.
+- Data visualization: any charts or comparison elements must be immediately legible at a glance, with labels, figures, and relationships arranged so meaning is obvious in under two seconds.
+- Overall tone: professional, trustworthy, confident, and clear — like a well-designed analyst report or product one-pager; composed restraint rather than loud attention-seeking, and never lets the style overpower the product itself.`
+  }
+};
+
+const LANGUAGE_RULES = {
+  fa_en: `- All callout labels and specification text MUST be written in PERSIAN (Farsi).
+- Keep the product brand name and model number in English (Latin characters).`,
+  fa_only: `- All text on the infographic — including brand, model, and every label — MUST be written in PERSIAN (Farsi), transliterated where needed.`,
+  en_only: `- All text on the infographic — including every label and specification — MUST be written in ENGLISH. Translate any Persian concepts into clear, natural English.`
+};
+
+/* =========================================================
+   3) PROMPT BUILDER
+   ========================================================= */
+
+function buildPrompt(data, styleKey, langKey) {
+  const style = STYLES[styleKey];
+  const specsBlock = data.specs.length
+    ? data.specs.map((s, i) => `  ${i + 1}. ${s}`).join("\n")
+    : "  (no additional specs provided — infer tastefully from the product image)";
+
+  return `Design a premium product infographic in a 1:1 square aspect ratio. The product image is centered, with thin, elegant callout lines connecting it to a small set of key feature labels.
+
+[SUBJECT / PRODUCT TITLE]
+- ${data.title || "(brand and model as shown in the product image)"}
+
+[KEY SPECIFICATIONS TO DISPLAY]
+${specsBlock}
+
+[VISUAL STYLE: ${style.label}]
+${style.block}
+
+[TYPOGRAPHY & LANGUAGE RULES]
+${LANGUAGE_RULES[langKey]}
+- Keep every label extremely short (3-6 words), simple, and understandable for people of any age or background — no technical jargon beyond what is listed above.
+- Do not repeat any label or specification twice.
+
+[LAYOUT]
+- Aspect Ratio: 1:1 (square)
+- Centerpiece: high-resolution studio product shot at the exact center.
+- Generous negative space, orderly alignment, no clutter.
+
+[RENDER QUALITY]
+- Studio product photography, sharp focus, 8k resolution, photorealistic materials, ultra-clean graphic design layout.`;
+}
+
+/* =========================================================
+   4) UI LANGUAGE (interface only — separate from the OUTPUT
+      prompt language dropdown, which controls the generated
+      prompt's own language, not the page UI).
+   ========================================================= */
+
+const STYLE_LABELS_EN = {
+  minimal: "Minimal White",
+  dark: "Dark Studio",
+  gold: "Luxury Gold",
+  cyber: "Techno Cyberpunk",
+  gradient: "Pastel Gradient",
+  vaporwave: "Retro 80s",
+  isometric: "Colorful Isometric Infographic",
+  bizchart: "Business Chart"
+};
+const STYLE_LABELS_FA = {
+  minimal: "مینیمال سفید",
+  dark: "استودیو تاریک",
+  gold: "لوکس طلایی",
+  cyber: "تکنو سایبرپانک",
+  gradient: "گرادیان پاستلی",
+  vaporwave: "رترو 80",
+  isometric: "اینفوگرافیک ایزومتریک رنگی",
+  bizchart: "بیزینس نموداری"
+};
+
+const SITE_LINKS = [
+  ["https://www.digikala.com", "Digikala"],
+  ["https://www.bprshop.com", "bprshop"],
+  ["https://www.gsmarena.com", "GSMArena"],
+  ["https://nanoreview.net", "NanoReview"]
+];
+
+function sitesNoteHTML(introText) {
+  const links = SITE_LINKS.map(([url, label]) =>
+    `<a href="${url}" target="_blank" rel="noopener" class="underline hover:text-white">${label}</a>`
+  ).join(' · ');
+  return introText + ' ' + links;
+}
+
+const UI_STRINGS = {
+  fa: {
+    dir: 'rtl',
+    docTitle: 'تولیدکننده پرامپت اینفوگرافیک',
+    title: 'تولیدکننده پرامپت اینفوگرافیک',
+    subtitle: 'تولید هوشمند پرامپت برای اینفوگرافیک‌های محصول — تصفیه خودکار، بدون تکرار، مینیمال',
+    sitesNote: sitesNoteHTML('بهترین عملکرد با محتوای کپی‌شده مستقیم از این ۴ سایت:'),
+    labelProductInfo: 'اطلاعات محصول را وارد کنید (حتی کپی مستقیم از صفحه فروشگاه):',
+    productInfoPlaceholder: 'مثال: گوشی آیفون 15، دوربین 48 مگاپیکسلی، بدنه تیتانیوم... یا کل متن کپی‌شده از صفحه محصول',
+    labelLanguage: 'زبان خروجی',
+    langOptions: { fa_en: 'فارسی + برند انگلیسی', fa_only: 'کاملاً فارسی', en_only: 'کاملاً انگلیسی' },
+    labelStyle: 'سبک بصری',
+    genBtn: 'تولید پرامپت',
+    warnMsg: 'لطفاً اطلاعات محصول را وارد کنید.',
+    labelSpecsUsed: 'مشخصاتی که در پرامپت استفاده شد:',
+    labelFinalPrompt: 'پرامپت نهایی ساخت اینفوگرافیک:',
+    copyBtn: 'کپی متن',
+    copyBtnDone: 'کپی شد ✓'
+  },
+  en: {
+    dir: 'ltr',
+    docTitle: 'Infographic Prompt Generator',
+    title: 'Infographic Prompt Generator',
+    subtitle: 'Smart prompt generation for product infographics — automatic cleanup, no duplicates, minimal',
+    sitesNote: sitesNoteHTML('Best results with content copied directly from these 4 sites:'),
+    labelProductInfo: 'Enter product information (even a direct copy from a store page):',
+    productInfoPlaceholder: 'Example: iPhone 15, 48MP camera, titanium body... or the full text copied from a product page',
+    labelLanguage: 'Output language',
+    langOptions: { fa_en: 'Persian + English brand', fa_only: 'Fully Persian', en_only: 'Fully English' },
+    labelStyle: 'Visual style',
+    genBtn: 'Generate Prompt',
+    warnMsg: 'Please enter product information.',
+    labelSpecsUsed: 'Specs used in the prompt:',
+    labelFinalPrompt: 'Final infographic prompt:',
+    copyBtn: 'Copy',
+    copyBtnDone: 'Copied ✓'
+  }
+};
+
+let uiLang = 'fa';
+
+function applyUILang(lang) {
+  const s = UI_STRINGS[lang];
+  uiLang = lang;
+  document.documentElement.lang = lang;
+  document.documentElement.dir = s.dir;
+  document.title = s.docTitle;
+  document.getElementById('uiTitle').textContent = s.title;
+  document.getElementById('uiSubtitle').textContent = s.subtitle;
+  document.getElementById('uiSitesNote').innerHTML = s.sitesNote;
+  document.getElementById('labelProductInfo').textContent = s.labelProductInfo;
+  document.getElementById('productInfo').placeholder = s.productInfoPlaceholder;
+  document.getElementById('labelLanguage').textContent = s.labelLanguage;
+  document.getElementById('labelStyle').textContent = s.labelStyle;
+  document.getElementById('genBtn').textContent = s.genBtn;
+  document.getElementById('warnMsg').textContent = s.warnMsg;
+  document.getElementById('labelSpecsUsed').textContent = s.labelSpecsUsed;
+  document.getElementById('labelFinalPrompt').textContent = s.labelFinalPrompt;
+  document.getElementById('copyBtn').textContent = s.copyBtn;
+  document.getElementById('langToggleLabel').textContent = lang === 'fa' ? 'EN' : 'FA';
+
+  const langSel = document.getElementById('language');
+  Array.from(langSel.options).forEach(opt => { opt.textContent = s.langOptions[opt.value]; });
+
+  const styleSel = document.getElementById('style');
+  const labels = lang === 'fa' ? STYLE_LABELS_FA : STYLE_LABELS_EN;
+  Array.from(styleSel.options).forEach(opt => { opt.textContent = labels[opt.value] || opt.textContent; });
+
+  try { localStorage.setItem('infographicToolLang', lang); } catch (e) {}
+}
+
+function toggleUILang() {
+  applyUILang(uiLang === 'fa' ? 'en' : 'fa');
+}
+
+(function initUILang() {
+  let saved = 'fa';
+  try { saved = localStorage.getItem('infographicToolLang') || 'fa'; } catch (e) {}
+  applyUILang(saved);
+})();
+
+/* =========================================================
+   5) UI WIRING
+   ========================================================= */
+
+function generatePrompt() {
+  const raw = document.getElementById('productInfo').value.trim();
+  const warn = document.getElementById('warnMsg');
+  if (!raw) { warn.classList.remove('hidden'); return; }
+  warn.classList.add('hidden');
+
+  const data = extractCleanData(raw);
+  const style = document.getElementById('style').value;
+  const lang = document.getElementById('language').value;
+
+  const prompt = buildPrompt(data, style, lang);
+  document.getElementById('output').value = prompt;
+
+  const previewWrap = document.getElementById('specsPreview');
+  previewWrap.innerHTML = '';
+  const chips = [data.title ? '🏷 ' + data.title : null, ...data.specs].filter(Boolean);
+  chips.forEach(c => {
+    const span = document.createElement('span');
+    span.className = 'text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full border border-indigo-100';
+    span.textContent = c;
+    previewWrap.appendChild(span);
+  });
+
+  document.getElementById('resultArea').classList.remove('hidden');
+}
+
+async function copyText() {
+  const output = document.getElementById('output');
+  const btn = document.getElementById('copyBtn');
+  try {
+    await navigator.clipboard.writeText(output.value);
+  } catch (e) {
+    output.select();
+    document.execCommand('copy');
+  }
+  btn.textContent = UI_STRINGS[uiLang].copyBtnDone;
+  setTimeout(() => { btn.textContent = UI_STRINGS[uiLang].copyBtn; }, 1500);
+}
+
+// Live-update the prompt when style/language change, if a prompt already exists
+['language', 'style'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    if (!document.getElementById('resultArea').classList.contains('hidden')) {
+      generatePrompt();
+    }
+  });
+});
+</script>
+</body>
+</html>
