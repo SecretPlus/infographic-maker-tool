@@ -4,7 +4,10 @@
 
 A single-file HTML tool that takes raw text copied directly from a store's product page and turns it into a clean, minimal prompt ready for AI image models (e.g. Gemini "Nano Banana" or GPT Image) to generate a square product infographic.
 
-**دمو زنده |Live demo:** [secretplus.github.io/infographic-maker-tool](https://secretplus.github.io/infographic-maker-tool)
+Live demo:** [secretplus.github.io/infographic-maker-tool](https://secretplus.github.io/infographic-maker-tool)
+
+
+**دمو زنده : [secretplus.github.io/infographic-maker-tool](https://secretplus.github.io/infographic-maker-tool)
 
 <img width="827" height="730" alt="Screenshot_1" src="https://github.com/user-attachments/assets/15bed03b-8bcd-43cd-b236-5b1a8be0b3b7" />
 
