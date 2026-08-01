@@ -8,7 +8,14 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap');
   body { font-family: 'Vazirmatn', sans-serif; }
-  select { background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: left 0.75rem center; background-size: 1.1rem; }
+  select {
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-size: 1.1rem;
+    padding-inline-end: 2.25rem !important;
+  }
+  html[dir="rtl"] select { background-position: left 0.75rem center; }
+  html[dir="ltr"] select { background-position: right 0.75rem center; }
 </style>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-8">
@@ -121,6 +128,72 @@ const NOISE_PATTERNS = [
   /^We may earn/i, /^Enter the name of the product/i, /^Begin typing for results/i,
   /Deal recommended based on/i, /^Register your profile/i, /^Name$/i, /^Message$/i, /^Send$/i
 ];
+
+/* ===================== reflow collapsed input =====================
+   Some copy-paste flows collapse the newlines between table rows into
+   plain spaces while leaving the tabs between label/value cells intact
+   (e.g. "...0.34 in) Weight	229.5 g (8.11 oz) SIM	· Nano-SIM..."). This
+   breaks all line-based parsing below. Detect long collapsed lines and
+   reinsert a line break before each known label/section word so the
+   rest of the pipeline can process it exactly like a normal paste. */
+
+const REFLOW_LABEL_WORDS = [
+  "Screen-to-body ratio", "Card slot", "Infrared port", "Refresh rate", "Storage type",
+  "Storage size", "RAM size", "CPU name", "GPU name", "Integrated GPU", "Battery type",
+  "Charge power", "Main Camera", "Selfie camera", "Full charging time",
+  "Network", "Launch", "Announced", "Status", "Body", "Dimensions", "Weight", "SIM",
+  "Display", "Type", "Size", "Resolution", "Protection", "Platform", "OS", "Chipset",
+  "CPU", "GPU", "Memory", "Internal", "Dual", "Single", "Features", "Video", "Sound",
+  "Loudspeaker", "Comms", "WLAN", "Bluetooth", "Positioning", "NFC", "Radio", "USB",
+  "Sensors", "Battery", "Charging", "Misc", "Colors", "Models", "Price", "Case",
+  "Storage", "Connectivity", "Ports", "Capacity"
+].sort((a, b) => b.length - a.length);
+
+const REFLOW_PLAIN_WORDS = ["MORE PICTURES"];
+
+const PERSIAN_REFLOW_LABELS = [
+  "سازنده پردازنده گرافیکی", "مدل پردازنده گرافیکی", "سری پردازنده گرافیکی",
+  "سازنده پردازنده", "سری پردازنده", "مدل پردازنده", "فرکانس پردازنده", "حافظه Cache",
+  "پردازنده گرافیکی", "پردازنده مرکزی", "حافظه گرافیکی",
+  "مقدار رم", "ظرفیت رم", "حافظه رم", "نوع حافظه RAM", "نوع حافظه رم",
+  "ظرفیت حافظه داخلی", "حافظه داخلی", "نوع حافظه داخلی",
+  "اندازه صفحه نمایش", "اندازه نمایشگر", "سایز صفحه نمایش",
+  "نوع صفحه نمایش", "فناوری صفحه نمایش", "دقت صفحه نمایش", "رزولوشن صفحه نمایش",
+  "نوع باتری", "ظرفیت باتری", "توضیحات باتری", "سیستم عامل", "نسخه سیستم عامل",
+  "توضیحات وب کم", "کیبورد با نور پس زمینه", "کارت خوان", "درایو نوری",
+  "تعداد پورت USB 3", "تعداد پورت USB 2", "تعداد پورت USB Type-C", "نسخه USB",
+  "مشخصات فیزیکی", "قابلیت پشتیبانی از سیم کارت", "قابلیت نصب سیم کارت", "تعداد سیم کارت",
+  "نسل شبکه های ارتباطی", "توضیحات Wi-Fi", "نسخه بلوتوث", "توضیحات قابلیت های مقاومتی",
+  "مشخصات کلی", "مشخصات فنی", "پارامتر های محصول", "رده کاربردی", "سری لپ تاپ",
+  "سایر مشخصات", "مزایا و معایب", "کد کالا", "وضعیت موجودی", "اقلام همراه",
+  "انتخاب گارانتی", "زمان معرفی", "اشتراک گذاری", "علاقه‌مندی", "صفحه اصلی",
+  "امتیاز کاربران از", "بروزرسانی:", "جستجو در محصولات", "امکانات",
+  "رزولوشن دوربین اصلی", "دسته ‌بندی", "دسته‌بندی", "نوع گوشی موبایل", "ریجن",
+  "قابلیت پشتیبانی از سیم کارت", "مدل"
+];
+
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// Real table labels are only recognized when immediately followed by a tab —
+// the actual structural signal from the source table. This is what prevents
+// a false match like "SIM" inside "Nano-SIM" (which is followed by a space,
+// not a tab), while still reliably catching the real "SIM\t..." row label.
+const REFLOW_TAB_REGEX = new RegExp('(?<!\\t)\\b(' + REFLOW_LABEL_WORDS.map(escapeRegExp).join('|') + ')\\t', 'g');
+const REFLOW_PLAIN_REGEX = new RegExp('\\b(' + REFLOW_PLAIN_WORDS.map(escapeRegExp).join('|') + ')\\b', 'g');
+const REFLOW_PERSIAN_REGEX = new RegExp(' (' + PERSIAN_REFLOW_LABELS.map(escapeRegExp).join('|') + ')(?= )', 'g');
+
+function reflowCollapsedLine(line) {
+  return line
+    .replace(REFLOW_TAB_REGEX, '\n$1\t')
+    .replace(REFLOW_PLAIN_REGEX, '\n$1')
+    .replace(REFLOW_PERSIAN_REGEX, '\n$1\n');
+}
+
+function reflowCollapsedText(rawText) {
+  return rawText.split('\n')
+    .flatMap(line => line.length > 250 ? reflowCollapsedLine(line).split('\n') : [line])
+    .join('\n');
+}
 
 const END_OF_DOC_MARKERS = [
   /^با دیجی[‌ ]?کالا$/, /نماد اعتماد الکترونیک/, /دیجی کالا؛ بزرگترین/,
@@ -237,6 +310,7 @@ const CATEGORY_LABELS = {
 
 function extractLabelValuePairs(lines) {
   const result = {};
+  const SHORT_VALUE_KEYS = new Set(['model_label', 'brand_label']);
   const norm = s => s.trim().replace(/\u200c/g, ' ').replace(/ +/g, ' ');
   const grabValue = (i, line) => {
     const colonMatch = line.match(/[:：](.+)/);
@@ -250,7 +324,7 @@ function extractLabelValuePairs(lines) {
       if (key in result) continue;
       if (def.specific && def.specific.test(line)) {
         const v = grabValue(i, lines[i].trim());
-        if (v && v !== '-') result[key] = v;
+        if (v && v !== '-' && !(SHORT_VALUE_KEYS.has(key) && (v.length > 40 || !/[A-Za-z0-9]/.test(v)))) result[key] = v;
       }
     }
   }
@@ -260,7 +334,7 @@ function extractLabelValuePairs(lines) {
       if (key in result) continue;
       if (def.generic && def.generic.test(line)) {
         const v = grabValue(i, lines[i].trim());
-        if (v && v !== '-') result[key] = v;
+        if (v && v !== '-' && !(SHORT_VALUE_KEYS.has(key) && (v.length > 40 || !/[A-Za-z0-9]/.test(v)))) result[key] = v;
       }
     }
   }
@@ -384,6 +458,19 @@ function findTitleSelfDuplicate(lines) {
   return null;
 }
 
+function findTitleRepeatedWithinLine(lines) {
+  for (const line of lines) {
+    const t = line.trim();
+    if (t.length < 8 || t.length > 200) continue;
+    const m = t.match(/\b([A-Z][\w.'\-]*(?:\s+[A-Za-z0-9.'\-]+){0,7})\s+\1\b/);
+    if (m) {
+      const brandHit = BRANDS.some(br => new RegExp("\\b" + br + "\\b", "i").test(m[1]));
+      if (brandHit) return m[1].trim();
+    }
+  }
+  return null;
+}
+
 function findTitleBreadcrumb(lines) {
   for (const line of lines) {
     const m = line.match(/>\s*([^>]+?):\s*full specs/i);
@@ -406,6 +493,8 @@ function buildTitle(lines, raw, pairs) {
   }
   const selfDup = findTitleSelfDuplicate(lines);
   if (selfDup) return selfDup;
+  const repeatedInline = findTitleRepeatedWithinLine(lines);
+  if (repeatedInline) return repeatedInline;
   const breadcrumb = findTitleBreadcrumb(lines);
   if (breadcrumb) {
     const hasBrand = BRANDS.some(b => new RegExp("\\b" + b + "\\b", "i").test(breadcrumb));
@@ -453,8 +542,12 @@ function scanConnectivity(raw) {
 }
 
 function scanSim(raw, rows) {
-  const gsmSim = getRow(rows, /^body$/i, /^sim$/i);
-  if (gsmSim) return gsmSim.split(',')[0].trim();
+  let gsmSim = getRow(rows, /^body$/i, /^sim$/i);
+  if (gsmSim) {
+    gsmSim = gsmSim.split(',')[0].trim();
+    gsmSim = gsmSim.split(/\s+(?:IP[0-9X]{2}\b|Manufacturer-rated|Drop resistant)/)[0].trim();
+    return gsmSim;
+  }
   if (/بدون پشتیبانی از سیم ?کارت|بدون سیم ?کارت/.test(raw)) return null;
   const mFa = raw.match(/(دو|یک|سه) ?سیم[‌ ]?کارت/);
   if (mFa) return mFa[0];
@@ -526,7 +619,7 @@ function dedupe(items) {
 /* ===================== main entry point ===================== */
 
 function extractCleanData(rawInput) {
-  const raw = toLatinDigits(rawInput).replace(/\r/g, '');
+  const raw = reflowCollapsedText(toLatinDigits(rawInput).replace(/\r/g, '').replace(/\u200c/g, ' ').replace(/ {2,}/g, ' '));
   let lines = raw.split("\n")
     .map(l => l.replace(/^ +/, '').replace(/ +$/, ''))
     .filter(l => l.trim().length > 0);
