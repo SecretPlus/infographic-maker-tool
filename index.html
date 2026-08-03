@@ -80,6 +80,8 @@
       </div>
     </div>
 
+    <p id="lastUpdated" class="text-center text-[11px] text-gray-300 mt-2 select-none"></p>
+
   </div>
 </div>
 
@@ -1052,7 +1054,8 @@ const UI_STRINGS = {
     labelSpecsUsed: 'مشخصاتی که در پرامپت استفاده شد:',
     labelFinalPrompt: 'پرامپت نهایی ساخت اینفوگرافیک:',
     copyBtn: 'کپی متن',
-    copyBtnDone: 'کپی شد ✓'
+    copyBtnDone: 'کپی شد ✓',
+    lastUpdated: 'آخرین بروزرسانی ابزار: ۱۲ مرداد ۱۴۰۵ - ساعت ۱۴:۳۰'
   },
   en: {
     dir: 'ltr',
@@ -1070,7 +1073,8 @@ const UI_STRINGS = {
     labelSpecsUsed: 'Specs used in the prompt:',
     labelFinalPrompt: 'Final infographic prompt:',
     copyBtn: 'Copy',
-    copyBtnDone: 'Copied ✓'
+    copyBtnDone: 'Copied ✓',
+    lastUpdated: 'Last updated: Aug 3, 2026 - 14:30'
   }
 };
 
@@ -1094,6 +1098,7 @@ function applyUILang(lang) {
   document.getElementById('labelSpecsUsed').textContent = s.labelSpecsUsed;
   document.getElementById('labelFinalPrompt').textContent = s.labelFinalPrompt;
   document.getElementById('copyBtn').textContent = s.copyBtn;
+  document.getElementById('lastUpdated').textContent = s.lastUpdated;
   document.getElementById('langToggleLabel').textContent = lang === 'fa' ? 'EN' : 'FA';
 
   const langSel = document.getElementById('language');
