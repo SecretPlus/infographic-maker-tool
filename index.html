@@ -169,7 +169,14 @@ const PERSIAN_REFLOW_LABELS = [
   "انتخاب گارانتی", "زمان معرفی", "اشتراک گذاری", "علاقه‌مندی", "صفحه اصلی",
   "امتیاز کاربران از", "بروزرسانی:", "جستجو در محصولات", "امکانات",
   "رزولوشن دوربین اصلی", "دسته ‌بندی", "دسته‌بندی", "نوع گوشی موبایل", "ریجن",
-  "قابلیت پشتیبانی از سیم کارت", "مدل"
+  "قابلیت پشتیبانی از سیم کارت", "مدل", "تراشه", "مقدار RAM",
+  "پشتیبانی از کارت حافظه", "شبکه‌های مخابراتی", "مشخصات بلوتوث",
+  "تکنولوژی‌های مکان‌یابی (GPS)", "درگاه‌ها و فناوری‌های ارتباطی",
+  "شبکه‌های ارتباطی قابل پشتیبانی", "تعداد دوربین‌های پشت گوشی", "نوع لنز دوربین اصلی",
+  "خروجی صدا", "امکانات نرم افزاری", "حس‌گرها", "توان شارژ", "قابلیت‌های شارژ",
+  "قابلیت‌های مقاومتی", "نوع سیم کارت", "ویژگی‌های کلیدی", "نسبت صفحه‌ نمایش به بدنه",
+  "نسبت تصویر", "تراکم پیکسلی", "سایر قابلیت‌ها", "نرخ به‌روزرسانی تصویر",
+  "توضیحات بدنه", "تعداد سیم کارت", "پردازنده", "حافظه"
 ];
 
 function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -180,7 +187,7 @@ function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 // not a tab), while still reliably catching the real "SIM\t..." row label.
 const REFLOW_TAB_REGEX = new RegExp('(?<!\\t)\\b(' + REFLOW_LABEL_WORDS.map(escapeRegExp).join('|') + ')\\t', 'g');
 const REFLOW_PLAIN_REGEX = new RegExp('\\b(' + REFLOW_PLAIN_WORDS.map(escapeRegExp).join('|') + ')\\b', 'g');
-const REFLOW_PERSIAN_REGEX = new RegExp(' (' + PERSIAN_REFLOW_LABELS.map(escapeRegExp).join('|') + ')(?= )', 'g');
+const REFLOW_PERSIAN_REGEX = new RegExp(' (' + PERSIAN_REFLOW_LABELS.map(s => escapeRegExp(s.replace(/\u200c/g, ' ').replace(/ {2,}/g, ' '))).join('|') + ')(?= )', 'g');
 
 function reflowCollapsedLine(line) {
   return line
@@ -278,7 +285,7 @@ const CATEGORY_LABELS = {
   gpu_maker: { specific: /^سازنده پردازنده گرافیکی$/ },
   gpu_model: { specific: /^مدل پردازنده گرافیکی$/ },
   gpu_desc: { specific: /^پردازنده‌?\s*گرافیکی$/ },
-  ram: { specific: /^مقدار رم$|^ظرفیت رم$/, generic: /^حافظه رم$|^رم$/ },
+  ram: { specific: /^مقدار رم$|^ظرفیت رم$|^مقدار RAM$/i, generic: /^حافظه رم$|^رم$/ },
   ram_type: { specific: /^نوع حافظه RAM$|^نوع رم$|^نوع حافظه رم$/i },
   storage: { specific: /^ظرفیت حافظه داخلی$|^فضای ذخیره[- ]?سازی$|^ظرفیت حافظه$/, generic: /^حافظه داخلی$/ },
   storage_type: { specific: /^نوع حافظه داخلی$|^نوع حافظه$/ },
@@ -305,6 +312,12 @@ const CATEGORY_LABELS = {
   wifi_desc: { specific: /^توضیحات Wi-?Fi$/i },
   bt_version: { specific: /^نسخه بلوتوث$/ },
   water_resist_desc: { specific: /^توضیحات قابلیت[‌ ]?های مقاومتی$/ },
+  cpu_paragraph: { specific: /^پردازنده مرکزی\s*:/ },
+  gpu_paragraph: { specific: /^پردازنده گرافیکی\s*:/ },
+  ram_paragraph: { specific: /^حافظه RAM\s*:/i },
+  storage_paragraph: { specific: /^حافظه داخلی\s*:/ },
+  display_paragraph: { specific: /^صفحه نمایش\s*:/ },
+  other_specs_paragraph: { specific: /^سایر مشخصات\s*:/ },
   battery_capacity_en: { specific: /^Capacity$/ },
 };
 
@@ -346,7 +359,9 @@ function extractLabelValuePairs(lines) {
 const KNOWN_SECTIONS = new Set([
   "Network","Launch","Body","Display","Platform","Memory","Main Camera","Selfie camera","Sound",
   "Comms","Features","Battery","Misc","Price","Our Tests","EU LABEL","Case","Cooling solution",
-  "CPU","Graphics Card","RAM","Storage","Connectivity","Ports","Input","Keyboard","Touchpad"
+  "CPU","Graphics Card","RAM","Storage","Connectivity","Ports","Input","Keyboard","Touchpad",
+  "Design and build","Performance","SoC","GPU","Main camera","Standard lens","Ultra-wide lens",
+  "Telephoto lens","Macro lens","Software","Other","Benchmarks"
 ].map(s => s.toLowerCase()));
 
 const CONFIG_SELECTOR_LABELS = new Set(["cpu name", "gpu name", "ram size", "storage size"]);
@@ -548,6 +563,11 @@ function scanSim(raw, rows) {
     gsmSim = gsmSim.split(/\s+(?:IP[0-9X]{2}\b|Manufacturer-rated|Drop resistant)/)[0].trim();
     return gsmSim;
   }
+  const simCount = getRow(rows, /^network$/i, /^number of sim\*?$/i);
+  const simType = getRow(rows, /^network$/i, /^type of sim card$/i);
+  if (simCount || simType) {
+    return [simCount && (simCount + "x"), simType].filter(Boolean).join(" ");
+  }
   if (/بدون پشتیبانی از سیم ?کارت|بدون سیم ?کارت/.test(raw)) return null;
   const mFa = raw.match(/(دو|یک|سه) ?سیم[‌ ]?کارت/);
   if (mFa) return mFa[0];
@@ -561,7 +581,7 @@ function scanIPRating(raw) {
   return m ? m[0] : null;
 }
 
-function scanCharging(raw) {
+function scanCharging(raw, rows) {
   let watts = null;
   const mEn = raw.match(/(\d{1,3})\s*W\s*(wired)/i);
   if (mEn) watts = mEn[1] + "W";
@@ -575,7 +595,13 @@ function scanCharging(raw) {
       watts = mGeneric[1] + "W";
     }
   }
-  const wireless = /wireless charging|شارژ (بی[‌ ]?سیم|وایرلس)/i.test(raw);
+  const wirelessRow = rows ? getRow(rows, /^battery$/i, /^wireless charging$/i) : null;
+  let wireless;
+  if (wirelessRow) {
+    wireless = !/^(no|none|ندارد)$/i.test(wirelessRow.trim());
+  } else {
+    wireless = /wireless charging (yes|available)|شارژ (بی[‌ ]?سیم|وایرلس)/i.test(raw);
+  }
   return { watts, wireless };
 }
 
@@ -587,7 +613,7 @@ function scanCharging(raw) {
 // "Nvidia GeForce RTX 3050" -> "GeForce RTX 3050"
 function simplifyChipName(raw) {
   if (!raw) return raw;
-  let s = raw.replace(/\b[A-Z]{2,5}\d{3,5}(-[A-Z0-9]+)*\b\s*/g, '').trim();
+  let s = raw.replace(/\b(?!RTX|GTX|GT\d|RX\d|MX\d)[A-Z]{2,5}\d{3,5}(-[A-Z0-9]+)*\b\s*/g, '').trim();
   const stripped = s.replace(/^(Qualcomm|MediaTek|Mediatek|HiSilicon|Samsung|Google|Intel|AMD|Nvidia|Apple|Huawei)\s+/i, '').trim();
   const looksSubstantial = stripped && (/\d/.test(stripped) || stripped.split(/\s+/).length >= 2);
   if (stripped && stripped !== s && looksSubstantial) s = stripped;
@@ -618,6 +644,64 @@ function dedupe(items) {
 
 /* ===================== main entry point ===================== */
 
+function scanTouchscreen(raw, rows) {
+  const row = getRow(rows, /^display$/i, /^touchscreen$/i);
+  if (row) return !/^(no|none)$/i.test(row.trim());
+  if (/صفحه ?نمایش لمسی|نمایشگر لمسی/.test(raw) && !/غیر ?لمسی|بدون قابلیت لمسی/.test(raw)) return true;
+  return false;
+}
+
+/* ===================== paragraph-style value cleanup ===================== */
+
+function cleanCpuParagraph(v) {
+  if (!v) return null;
+  let s = v.split(/\s+-\s+حافظه ?کش/)[0].trim();
+  s = s.replace(/\s+\d+(\.\d+)?\s*GHz.*/i, '').trim();
+  return s || null;
+}
+
+function cleanGpuParagraph(v) {
+  if (!v) return null;
+  let s = v.replace(/^Nvideia\b/i, 'Nvidia');
+  s = s.split(/\s+\d+W\b/i)[0].trim();
+  s = s.replace(/\s+GDDR\d.*$/i, '').trim();
+  return s || null;
+}
+
+function cleanStorageParagraph(v) {
+  if (!v) return null;
+  const m = v.match(/(\d+)\s*(گیگابایت|گيگابايت|GB|ترابایت|TB)/i);
+  const type = /SSD/i.test(v) ? 'SSD' : (/HDD/i.test(v) ? 'HDD' : '');
+  if (m) {
+    const unit = /ترابایت|TB/i.test(m[2]) ? 'TB' : 'GB';
+    return m[1] + unit + (type ? ' ' + type : '');
+  }
+  return v.split(/\s+-\s+/)[0].trim() || null;
+}
+
+function cleanRamParagraph(v) {
+  if (!v) return { capacity: null, type: null };
+  const capM = v.match(/ظرفیت\s*:\s*([\d]+\s*(?:گیگابایت|گيگابايت|GB))/i);
+  const typeM = v.match(/نوع\s*:\s*(DDR\d[A-Za-z]*|LPDDR\d[A-Za-z]*)/i);
+  return { capacity: capM ? capM[1].trim() : null, type: typeM ? typeM[1].trim() : null };
+}
+
+function cleanDisplayParagraph(v) {
+  if (!v) return { inch: null, type: null, finish: null };
+  const inchM = v.match(/(\d+(?:\.\d+)?)\s*(?:اينچ|اینچ)/);
+  const inch = inchM ? inchM[1] : null;
+  const typeM = v.match(/از نوع\s+(?:\d+Hz\s+)?([A-Za-z]+)/);
+  const type = typeM ? typeM[1] : null;
+  const finish = /مات/.test(v) ? 'مات' : (/براق/.test(v) ? 'براق' : null);
+  return { inch, type, finish };
+}
+
+function cleanBatteryParagraph(v) {
+  if (!v) return null;
+  const m = v.match(/باتری\s*([\d.]+\s*(?:وات ?ساعت|mAh|میلی[- ]?آمپر[- ]?ساعت))/i);
+  return m ? m[1].trim() : null;
+}
+
 function extractCleanData(rawInput) {
   const raw = reflowCollapsedText(toLatinDigits(rawInput).replace(/\r/g, '').replace(/\u200c/g, ' ').replace(/ {2,}/g, ' '));
   let lines = raw.split("\n")
@@ -632,20 +716,28 @@ function extractCleanData(rawInput) {
   const rows = parseTabTable(lines);
   const title = buildTitle(lines, raw, pairs) || "";
 
-  const cpuParts = [pairs.cpu_maker, pairs.cpu_model || pairs.cpu_series].filter(Boolean);
   let cpuVal = null;
-  if (cpuParts.length === 2 && cpuParts[1].toLowerCase().includes(cpuParts[0].toLowerCase())) {
-    cpuVal = cpuParts[1];
-  } else if (cpuParts.length) {
-    cpuVal = dedupe(cpuParts).join(" ");
-  } else {
+  if (pairs.cpu_model && pairs.cpu_series &&
+      !pairs.cpu_model.toLowerCase().includes(pairs.cpu_series.toLowerCase())) {
+    cpuVal = pairs.cpu_series + " - " + pairs.cpu_model;
+  } else if (pairs.cpu_model) {
+    cpuVal = pairs.cpu_model;
+  } else if (pairs.cpu_series) {
+    cpuVal = pairs.cpu_series;
+  }
+  if (cpuVal && pairs.cpu_maker && !cpuVal.toLowerCase().includes(pairs.cpu_maker.toLowerCase())) {
+    cpuVal = pairs.cpu_maker + " " + cpuVal;
+  }
+  if (!cpuVal) {
     cpuVal = pairs.cpu_chip || pairs.cpu_desc || null;
   }
   if (!cpuVal) {
     cpuVal = getRow(rows, /^platform$/i, /^chipset$/i) ||
+             getRow(rows, /^soc$/i, /^chipset$/i) ||
              getRow(rows, /^cpu$/i, /^name$/i) ||
              getRow(rows, /^platform$/i, /^cpu$/i);
   }
+  if (!cpuVal) cpuVal = cleanCpuParagraph(pairs.cpu_paragraph);
   cpuVal = simplifyChipName(cpuVal);
   const cpuLine = cpuVal ? "پردازنده: " + cpuVal : null;
 
@@ -653,26 +745,33 @@ function extractCleanData(rawInput) {
   let gpuVal = gpuParts.length ? dedupe(gpuParts).join(" ") : (pairs.gpu_desc || null);
   if (!gpuVal) {
     gpuVal = getRow(rows, /^graphics card$/i, /^name$/i) ||
+             getRow(rows, /^gpu$/i, /^graphics$/i) ||
              getRow(rows, /^platform$/i, /^gpu$/i) ||
              getRow(rows, /^cpu$/i, /^integrated gpu$/i);
   }
+  if (!gpuVal) gpuVal = cleanGpuParagraph(pairs.gpu_paragraph);
   gpuVal = simplifyChipName(gpuVal);
   const gpuLine = gpuVal ? "گرافیک: " + gpuVal : null;
 
   const ramUpgrade = scanRamUpgrade(raw);
   let ramVal = pairs.ram ? pairs.ram + (pairs.ram_type ? " " + pairs.ram_type : "") : null;
   if (!ramVal) {
-    const size = getRow(rows, /^ram$/i, /^size$/i);
-    const type = getRow(rows, /^ram$/i, /^type$/i);
+    const size = getRow(rows, /^ram$/i, /^size$|^ram size$/i);
+    const type = getRow(rows, /^ram$/i, /^type$|^memory type$/i);
     if (size) ramVal = size + (type ? " " + type : "");
+  }
+  if (!ramVal && pairs.ram_paragraph) {
+    const rp = cleanRamParagraph(pairs.ram_paragraph);
+    if (rp.capacity) ramVal = rp.capacity + (rp.type ? " " + rp.type : "");
   }
   const ramLine = ramVal ? "رم: " + ramVal + (ramUpgrade ? " (قابل ارتقا " + ramUpgrade + ")" : "") : null;
 
   let storageVal = pairs.storage || null;
   if (!storageVal) {
-    storageVal = getRow(rows, /^storage$/i, /^size$/i) || getRow(rows, /^memory$/i, /^internal$/i);
+    storageVal = getRow(rows, /^storage$/i, /^size$|^storage size$/i) || getRow(rows, /^memory$/i, /^internal$/i);
     if (storageVal) storageVal = storageVal.split(',')[0].trim();
   }
+  if (!storageVal) storageVal = cleanStorageParagraph(pairs.storage_paragraph);
   let storageType = pairs.storage_type ||
     getRow(rows, /^storage$/i, /^storage type$/i) ||
     getRow(rows, /^storage$/i, /^type$/i);
@@ -682,28 +781,34 @@ function extractCleanData(rawInput) {
   }
   const storageLine = storageVal ? "حافظه: " + storageVal : null;
 
-  const displayFinish = scanDisplayFinish(raw);
+  const displayFinish0 = scanDisplayFinish(raw);
+  const dispParagraph = cleanDisplayParagraph(pairs.display_paragraph);
+  const displayFinish = displayFinish0 || dispParagraph.finish;
   let dSize = pairs.display_size, dType = pairs.display_type;
   if (!dSize) dSize = getRow(rows, /^display$/i, /^size$/i);
   if (!dType) dType = getRow(rows, /^display$/i, /^type$/i);
   if (dType) dType = dType.split(',')[0].trim();
-  const dInches = parseDisplayInches(dSize);
+  let dInches = parseDisplayInches(dSize);
+  if (!dInches) dInches = dispParagraph.inch;
+  if (!dType) dType = dispParagraph.type;
   let displayCore = dInches ? dInches + " اینچ" : "";
   if (dType) displayCore += (displayCore ? " از نوع " : "از نوع ") + dType;
+  const isTouch = productType !== 'mobile' && scanTouchscreen(raw, rows);
   const displayLine = displayCore
-    ? "نمایشگر: " + displayCore + (displayFinish ? " - " + displayFinish : "")
+    ? "نمایشگر: " + displayCore + (displayFinish ? " - " + displayFinish : "") + (isTouch ? " - لمسی" : "")
     : null;
 
   let battVal = [pairs.battery_capacity, pairs.battery_type, pairs.battery_desc].filter(Boolean).join(" - ") || null;
   if (!battVal) {
-    const cap = getRow(rows, /^battery$/i, /^type$/i);
+    const cap = getRow(rows, /^battery$/i, /^type$|^battery type$/i);
     const cap2 = getRow(rows, /^battery$/i, /^capacity$/i);
     battVal = [cap2, cap].filter(Boolean).join(" - ") || null;
   }
   if (!battVal && pairs.battery_capacity_en) battVal = pairs.battery_capacity_en;
-  const chargeInfo = scanCharging(raw);
+  if (!battVal) battVal = cleanBatteryParagraph(pairs.other_specs_paragraph);
+  const chargeInfo = scanCharging(raw, rows);
   if (!chargeInfo.watts) {
-    const cp = getRow(rows, /^battery$/i, /^charge power$/i);
+    const cp = getRow(rows, /^battery$/i, /^charge power$|^max charge power$/i);
     if (cp) { const m = cp.match(/(\d{1,3})\s*W/); if (m) chargeInfo.watts = m[1] + "W"; }
   }
   const battLine = battVal
@@ -712,17 +817,18 @@ function extractCleanData(rawInput) {
 
   let osVal = pairs.os_version || pairs.os || null;
   if (!osVal) {
-    osVal = getRow(rows, /^platform$/i, /^os$/i);
-    if (osVal) osVal = osVal.split(',')[0].trim();
+    osVal = getRow(rows, /^platform$/i, /^os$/i) ||
+            getRow(rows, /^software$/i, /^operating system$/i);
+    if (osVal) osVal = osVal.split(',')[0].split('(')[0].trim();
   }
   const osHasValue = osVal && !/^(ندارد|فاقد|بدون سیستم عامل|بدون|none|n\/a|-|—)$/i.test(osVal.trim());
   const osLine = osHasValue ? "سیستم عامل: " + osVal : null;
 
   const conn = scanConnectivity(raw);
   let wifiVer = getRow(rows, /^connectivity$|^comms$/i, /^wi-?fi/i);
-  let btVer = getRow(rows, /^connectivity$|^comms$/i, /^bluetooth$/i) || pairs.bt_version;
+  let btVer = getRow(rows, /^connectivity$|^comms$/i, /^bluetooth$|^bluetooth version$/i) || pairs.bt_version;
   const connParts = [
-    conn.wifi && ("Wi-Fi" + (wifiVer ? " " + wifiVer : "")),
+    conn.wifi && (wifiVer && /^wi-?fi/i.test(wifiVer) ? wifiVer : "Wi-Fi" + (wifiVer ? " " + wifiVer : "")),
     conn.bluetooth && ("بلوتوث" + (btVer ? " " + btVer : "")),
     conn.cellular
   ].filter(Boolean);
